@@ -12,5 +12,8 @@ module purge
 module load 2022
 module load Anaconda3/2022.05
 
-cd /home/fshi//xft-moe
+cd /home/fshi/xft-moe
 conda env create -f xft_env.yml
+source activate xft
+pip install torch==2.1.1 torchvision==0.16.1 --index-url https://download.pytorch.org/whl/cu118
+pip install flash-attn==2.3.1.post1  --no-build-isolation

@@ -1,7 +1,11 @@
+set -e
+set -x 
+
+export PYTHONPATH=:/home/fshi/xft-moe/src:/home/fshi/xft-moe/src/magicoder
 MODEL_KEY=deepseek-ai/deepseek-coder-1.3b-base
-MODEL=[YOUR_HOME_PATH]/xft/src/magicoder/ds-8x1.3b-top-6-universal-evol-instruct-5e-5_bs_64_epoch_4
+MODEL=/home/fshi/xft-moe/src/magicoder/ds-8x1.3b-top-6-universal-evol-instruct-5e-5_bs_64_epoch_4
 DATASET=humaneval
-SAVE_PATH=evalplus-$(basename $MODEL)-$DATASET.jsonl
+SAVE_PATH=./evalplus-$(basename $MODEL)-$DATASET.jsonl
 
 CUDA_VISIBLE_DEVICES=0 python experiments/text2code.py \
   --model_key $MODEL_KEY \
