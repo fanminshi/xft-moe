@@ -1,0 +1,42 @@
+#!/bin/bash
+#SBATCH --partition=gpu_h100
+#SBATCH --job-name=xftmoe
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=1
+#SBATCH --ntasks-per-node=8
+#SBATCH --nodes=1
+#SBATCH --time=22:59:59
+#SBATCH --output=xft_final_eval_%A.out
+#SBATCH --error=xft_final_eval_%A.err
+
+
+
+module purge
+module load 2023
+module load Anaconda3/2023.07-2
+
+cd /home/fshi/xft-moe/
+source activate xft
+
+set -x
+
+export SCRATCH_DIR="/scratch-shared/fshi/xft-data"
+export PYTHONPATH=:/home/fshi/xft-moe/src:/home/fshi/xft-moe/src/magicoder
+
+NUM_ITERATIONS=4
+# Loop over the number of iterations
+for ((i=1; i<=NUM_ITERATIONS; i++))
+do
+    rm -rf "/scratch-shared/fshi/xft-data/*eval_results.json"
+    export MODEL="$SCRATCH_DIR/iter-$i-deepseek-coder-8x1.3b-top-6-moe-base"
+    echo "eval MOE Base $MODEL..."
+    bash test_moe.sh
+
+    export MODEL="$SCRATCH_DIR/iter-$i-ds-8x1.3b-top-6-universal-evol-instruct-5e-5_bs_64_epoch_4"
+    echo "eval MOE $MODEL..."
+    bash test_moe.sh
+
+    export MODEL="$MODEL-weighted_dense-lambda-75-1e-5_bs_64_epoch_1-dense"
+    echo "eval XFT $MODEL"
+    bash test.sh
+done

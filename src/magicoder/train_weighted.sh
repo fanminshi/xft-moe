@@ -2,8 +2,6 @@ set -e
 set -x 
 
 MODEL_KEY=deepseek-ai/deepseek-coder-1.3b-base
-MODEL_NAME_OR_PATH="$SCARTCH_DIR/ds-8x1.3b-top-6-universal-evol-instruct-5e-5_bs_64_epoch_4_weighted_dense"
-OUTPUT_DIR="$SCARTCH_DIR/ds-8x1.3b-top-6-universal-evol-instruct-5e-5_bs_64_epoch_4_weighted_dense-lambda-75-1e-5_bs_64_epoch_1"
 
 if [ -d "$OUTPUT_DIR" ]; then
   echo "Directory $OUTPUT_DIR exists. Skip training ..."
