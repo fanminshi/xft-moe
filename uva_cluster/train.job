@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --ntasks-per-node=8
 #SBATCH --nodes=1
-#SBATCH --time=30:59:59
+#SBATCH --time=70:59:59
 #SBATCH --output=xft_train_%A.out
 #SBATCH --error=xft_train_output_%A.err
 set -e
@@ -65,10 +65,13 @@ source activate xft
 # bash test_moe.sh
 
 # Define number of iterations
-NUM_ITERATIONS=4
-export SCRATCH_DIR="/scratch-shared/fshi/xft-data"
+NUM_ITERATIONS=12
+export SCRATCH_DIR="/scratch-shared/fshi/xft-data/run-2"
 export PYTHONPATH=:/home/fshi/xft-moe/src:/home/fshi/xft-moe/src/magicoder
 
+# Download the dataset
+
+wget https://huggingface.co/datasets/ise-uiuc/Magicoder-Evol-Instruct-110K/resolve/main/data-evol_instruct-decontaminated.jsonl 
 # Loop over the number of iterations
 for ((i=1; i<=NUM_ITERATIONS; i++))
 do
@@ -77,9 +80,9 @@ do
   # Step 1: Upcycle an MoE model from DeepSeek-Coder-1.3B Base.
   cd /home/fshi/xft-moe/src/magicoder
 
-  # Set DENSE_MODEL conditionally for iteration 1
   if [[ $i -eq 1 ]]; then
     DENSE_MODEL="deepseek-ai/deepseek-coder-1.3b-base"
+    # DENSE_MODEL="/scratch-shared/fshi/xft-data/iter-4-ds-8x1.3b-top-6-universal-evol-instruct-5e-5_bs_64_epoch_4-weighted_dense-lambda-75-1e-5_bs_64_epoch_1-dense"
   else
     DENSE_MODEL="$MOE_DENSE"
   fi

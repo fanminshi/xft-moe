@@ -23,14 +23,14 @@ set -x
 export SCRATCH_DIR="/scratch-shared/fshi/xft-data"
 export PYTHONPATH=:/home/fshi/xft-moe/src:/home/fshi/xft-moe/src/magicoder
 
-NUM_ITERATIONS=4
+NUM_ITERATIONS=12
 # Loop over the number of iterations
 for ((i=1; i<=NUM_ITERATIONS; i++))
 do
-    rm -rf "/scratch-shared/fshi/xft-data/*eval_results.json"
-    export MODEL="$SCRATCH_DIR/iter-$i-deepseek-coder-8x1.3b-top-6-moe-base"
-    echo "eval MOE Base $MODEL..."
-    bash test_moe.sh
+    # rm -rf "/scratch-shared/fshi/xft-data/*eval_results.json"
+    # export MODEL="$SCRATCH_DIR/iter-$i-deepseek-coder-8x1.3b-top-6-moe-base"
+    # echo "eval MOE Base $MODEL..."
+    # bash test_moe.sh
 
     export MODEL="$SCRATCH_DIR/iter-$i-ds-8x1.3b-top-6-universal-evol-instruct-5e-5_bs_64_epoch_4"
     echo "eval MOE $MODEL..."
