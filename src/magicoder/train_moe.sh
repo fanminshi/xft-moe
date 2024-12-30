@@ -2,12 +2,9 @@ set -e
 set -x 
 
 MODEL_KEY=deepseek-ai/deepseek-coder-1.3b-base
-MODEL_NAME_OR_PATH="$SCARTCH_DIR/deepseek-coder-8x1.3b-top-6-moe-base"
-OUTPUT_DIR="$SCARTCH_DIR/ds-8x1.3b-top-6-universal-evol-instruct-5e-5_bs_64_epoch_4"
 
 if [ -d "$OUTPUT_DIR" ]; then
   echo "Directory $OUTPUT_DIR exists. Skip training ..."
-
 else
   echo "Directory $OUTPUT_DIR does not exist."
   CUDA_VISIBLE_DEVICES=0,1,2,3 accelerate launch --main_process_port 29500 train.py \

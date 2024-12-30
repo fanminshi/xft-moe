@@ -17,7 +17,7 @@ def set_seed(seed: int):
 def convert_dense_to_moe(args):
     ds_coder = AutoModelForCausalLM.from_pretrained(args.model)
     ds_coder_state_dict = ds_coder.state_dict()
-    print(ds_coder)
+    # print(ds_coder)
 
     ds_coder_ffn = {}
     for key in ds_coder_state_dict.keys():
@@ -26,13 +26,13 @@ def convert_dense_to_moe(args):
                 ds_coder_ffn[key.split(".mlp.")[0]] = {}
             ds_coder_ffn[key.split(".mlp.")[0]][key.split(".mlp.")[1].split(".weight")[0]] = ds_coder_state_dict[key]
     
-    ds_coder_moe_config = LlamaMoEUpscalingConfig(num_experts=8, num_selects=6, gate_type="TopKUniversalBalancedNoisyGate")
+    ds_coder_moe_config = LlamaMoEUpscalingConfig(num_experts=args.experts, num_selects=args.topk, gate_type="TopKUniversalBalancedNoisyGate")
     ds_coder_moe = LlamaMoEUpscalingForCausalLM.from_pretrained(
         args.model,
         config=ds_coder_moe_config,
     )
     ds_coder_moe_state_dict = ds_coder_moe.state_dict()
-    print(ds_coder_moe)
+    # print(ds_coder_moe)
 
     for key in ds_coder_moe_state_dict.keys():
         if ".mlp.calculator.experts." in key:
@@ -45,12 +45,14 @@ def convert_dense_to_moe(args):
                 ds_coder_moe_state_dict[key] = ds_coder_ffn[layer_name]["gate_proj"]
 
     ds_coder_moe.load_state_dict(ds_coder_moe_state_dict)
-    print(ds_coder_moe.state_dict())
+    # print(ds_coder_moe.state_dict())
     ds_coder_moe.save_pretrained(args.save_path)
 
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--topk", type=int, default=6)
+    parser.add_argument("--experts", type=int, default=8)
     parser.add_argument("--model", type=str, default="deepseek-ai/deepseek-coder-1.3b-base")
     parser.add_argument("--save_path", type=str, default="deepseek-coder-8x1.3b-top-6-moe-base")
     args = parser.parse_args()

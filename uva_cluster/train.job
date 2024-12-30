@@ -1,0 +1,151 @@
+#!/bin/bash
+#SBATCH --partition=gpu_h100
+#SBATCH --job-name=xftmoe
+#SBATCH --gpus=4
+#SBATCH --cpus-per-task=4
+#SBATCH --ntasks-per-node=8
+#SBATCH --nodes=1
+#SBATCH --time=70:59:59
+#SBATCH --output=xft_train_%A.out
+#SBATCH --error=xft_train_output_%A.err
+set -e
+set -x 
+
+module purge
+module load 2023
+module load Anaconda3/2023.07-2
+
+cd /home/fshi/xft-moe/
+source activate xft
+
+# export SCARTCH_DIR="/scratch-shared/fshi/xft-data"
+
+# # Step 1: Upcycle an MoE model from DeepSeek-Coder-1.3B Base.
+# cd /home/fshi/xft-moe/src/magicoder
+# export PYTHONPATH=:/home/fshi/xft-moe/src:/home/fshi/xft-moe/src/magicoder
+# python convert_dense_to_moe.py \
+#  --model deepseek-ai/deepseek-coder-1.3b-base \
+#  --save_path "$SCARTCH_DIR/deepseek-coder-8x1.3b-top-6-moe-base"
+
+# # Step 2:  Instruction tune the upcycled MoE model on evol-instruct dataset.
+# export DATA_DIR=/scratch-shared/fshi/xft-data/data-evol_instruct-decontaminated.jsonl
+# bash train_moe.sh
+# # eval Evaluate the instruction-tuned MoE model on HumanEval(+).
+# cd /home/fshi/xft-moe
+# export MODEL="$SCARTCH_DIR/ds-8x1.3b-top-6-universal-evol-instruct-5e-5_bs_64_epoch_4" 
+# bash test_moe.sh
+
+# # Step 3: Extract FFN weights from the instruction-tuned MoE model.
+# cd /home/fshi/xft-moe/src/magicoder
+# python convert_moe_to_ffn.py \
+#  --model "$SCARTCH_DIR/ds-8x1.3b-top-6-universal-evol-instruct-5e-5_bs_64_epoch_4" \
+#  --save_path "$SCARTCH_DIR/ds-8x1.3b-top-6-universal-evol-instruct-5e-5_bs_64_epoch_4_ffn"
+
+# # Step 5: Initialize the mixing coefficients which aims to merge the experts in the instruction-tuned MoE model.
+# python convert_moe_to_weighted.py \
+#  --model "$SCARTCH_DIR/ds-8x1.3b-top-6-universal-evol-instruct-5e-5_bs_64_epoch_4" \
+#  --save_path "$SCARTCH_DIR/ds-8x1.3b-top-6-universal-evol-instruct-5e-5_bs_64_epoch_4_weighted_dense" \
+#  --num_experts 8
+
+# # Step 6: Learn the mixing coefficients on evol-instruct dataset.
+# bash train_weighted.sh
+
+# # Step 7: Merge the instruction-tuned MoE model based on the learned mixing coefficients. Now you will get a instruction-tuned model that has the same architecture as DeepSeek-Coder-1.3B Base.
+# cd /home/fshi/xft-moe/src/magicoder
+# python convert_weighted_to_dense.py \
+#  --model_moe "$SCARTCH_DIR/ds-8x1.3b-top-6-universal-evol-instruct-5e-5_bs_64_epoch_4" \
+#  --model_dense "$SCARTCH_DIR/ds-8x1.3b-top-6-universal-evol-instruct-5e-5_bs_64_epoch_4_weighted_dense-lambda-75-1e-5_bs_64_epoch_1" \
+#  --save_path "$SCARTCH_DIR/ds-8x1.3b-top-6-universal-evol-instruct-5e-5_bs_64_epoch_4_weighted_dense-lambda-75-1e-5_bs_64_epoch_1-dense" \
+#  --num_experts 8 \
+#  --shared_expert_weight 0.75
+
+# # Eval XFT model
+# export MODEL="$SCARTCH_DIR/ds-8x1.3b-top-6-universal-evol-instruct-5e-5_bs_64_epoch_4_weighted_dense-lambda-75-1e-5_bs_64_epoch_1-dense"
+# cd /home/fshi/xft-moe/
+# bash test_moe.sh
+
+# Define number of iterations
+NUM_ITERATIONS=12
+export SCRATCH_DIR="/scratch-shared/fshi/xft-data/run-2"
+export PYTHONPATH=:/home/fshi/xft-moe/src:/home/fshi/xft-moe/src/magicoder
+
+# Download the dataset
+
+wget https://huggingface.co/datasets/ise-uiuc/Magicoder-Evol-Instruct-110K/resolve/main/data-evol_instruct-decontaminated.jsonl 
+# Loop over the number of iterations
+for ((i=1; i<=NUM_ITERATIONS; i++))
+do
+  echo "Starting iteration $i"
+
+  # Step 1: Upcycle an MoE model from DeepSeek-Coder-1.3B Base.
+  cd /home/fshi/xft-moe/src/magicoder
+
+  if [[ $i -eq 1 ]]; then
+    DENSE_MODEL="deepseek-ai/deepseek-coder-1.3b-base"
+    # DENSE_MODEL="/scratch-shared/fshi/xft-data/iter-4-ds-8x1.3b-top-6-universal-evol-instruct-5e-5_bs_64_epoch_4-weighted_dense-lambda-75-1e-5_bs_64_epoch_1-dense"
+  else
+    DENSE_MODEL="$MOE_DENSE"
+  fi
+  # Generate a unique save path for each iteration
+  MOE_MODEL="$SCRATCH_DIR/iter-$i-deepseek-coder-8x1.3b-top-6-moe-base"
+  python convert_dense_to_moe.py \
+    --model "$DENSE_MODEL" \
+    --save_path "$MOE_MODEL"
+
+  # Step 2: Instruction tune the upcycled MoE model on evol-instruct dataset.
+  export DATA_DIR="$SCRATCH_DIR/data-evol_instruct-decontaminated.jsonl"
+  export MODEL_NAME_OR_PATH="$MOE_MODEL"
+  export OUTPUT_DIR="$SCRATCH_DIR/iter-$i-ds-8x1.3b-top-6-universal-evol-instruct-5e-5_bs_64_epoch_4"
+  bash train_moe.sh
+  
+  # Step 3: Evaluate the instruction-tuned MoE model on HumanEval(+).
+  cd /home/fshi/xft-moe
+  export MODEL="$OUTPUT_DIR"
+  bash test_moe.sh
+  
+  # Step 4: Extract FFN weights from the instruction-tuned MoE model.
+  cd /home/fshi/xft-moe/src/magicoder
+  FINTUNED_MOE_MODEL="$OUTPUT_DIR"
+  FINTUNED_MOE_MODEL_FNN="$FINTUNED_MOE_MODEL-fnn"
+  python convert_moe_to_ffn.py \
+    --model "$FINTUNED_MOE_MODEL" \
+    --save_path "$FINTUNED_MOE_MODEL_FNN"
+
+  # Step 4.5: Set finetuned MoE model's config file to use the fnn model
+  CONFIG="$FINTUNED_MOE_MODEL/config.json" 
+  jq --arg new_value "$FINTUNED_MOE_MODEL_FNN" '.ffn_folder_path = $new_value' "$CONFIG" > config.tmp
+  sed -i 's/"factor": 4/"factor": 4.0/' config.tmp
+  cat config.tmp > "$CONFIG"
+  cat "$CONFIG"
+  # Step 5: Initialize the mixing coefficients to merge the experts.
+  FINTUNED_MOE_MODEL_WEIGHTED="$FINTUNED_MOE_MODEL-weighted_dense"
+  python convert_moe_to_weighted.py \
+    --model "$FINTUNED_MOE_MODEL" \
+    --save_path "$FINTUNED_MOE_MODEL_WEIGHTED" \
+    --num_experts 8
+
+  # Step 6: Learn the mixing coefficients on evol-instruct dataset.
+  export MODEL_NAME_OR_PATH="$FINTUNED_MOE_MODEL_WEIGHTED"
+  export OUTPUT_DIR="$FINTUNED_MOE_MODEL_WEIGHTED-lambda-75-1e-5_bs_64_epoch_1"
+  bash train_weighted.sh
+  
+  # Step 7: Merge the instruction-tuned MoE model based on the learned mixing coefficients.
+  cd /home/fshi/xft-moe/src/magicoder
+  MOE_MODEL_WEIGHTED_MIXING="$OUTPUT_DIR"
+  export MOE_DENSE="$MOE_MODEL_WEIGHTED_MIXING-dense"
+  python convert_weighted_to_dense.py \
+    --model_moe "$FINTUNED_MOE_MODEL" \
+    --model_dense "$MOE_MODEL_WEIGHTED_MIXING" \
+    --save_path "$MOE_DENSE" \
+    --num_experts 8 \
+    --shared_expert_weight 0.75
+
+  # Evaluate the merged XFT model.
+  export MODEL="$MOE_DENSE"
+  cd /home/fshi/xft-moe/
+  bash test.sh
+
+  echo "Completed iteration $i"
+done
+
+
